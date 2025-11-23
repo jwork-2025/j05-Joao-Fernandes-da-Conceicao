@@ -1,0 +1,144 @@
+            if (meleeTransform != null) {
+                float distance = playerTransform.getPosition().distance(meleeTransform.getPosition());
+                if (distance < 20) { // 敌人近程攻击范围
+                    playerHealth.takeDamage(15); // 敌人近程攻击伤害
+                    playSound("damage"); // 播放伤害音效
+                    enemyMelee.destroy(); // 销毁攻击判定区�?                }
+            }
+        }
+
+        // 2. 敌人子弹 vs 玩家
+        for (GameObject projectile : enemyProjectiles) {
+            TransformComponent projTransform = projectile.getComponent(TransformComponent.class);
+            if (projTransform != null) {
+                float distance = playerTransform.getPosition().distance(projTransform.getPosition());
+                if (distance < 15) { // 子弹碰撞半径
+                    playerHealth.takeDamage(5); // 敌人远程伤害
+                    playSound("damage"); // 播放伤害音效
+                    projectile.destroy(); // 销毁子�?                }
+            }
+        }
+
+        // 3. 玩家子弹 vs 敌人
+        for (GameObject projectile : playerProjectiles) {
+            TransformComponent projTransform = projectile.getComponent(TransformComponent.class);
+            if (projTransform == null) continue;
+            for (GameObject enemy : enemies) {
+                if (!enemy.isActive()) continue;
+                HealthComponent enemyHealth = enemy.getComponent(HealthComponent.class);
+                if (enemyHealth == null || !enemyHealth.isAlive()) continue;
+                TransformComponent enemyTransform = enemy.getComponent(TransformComponent.class);
+                if (enemyHealth != null && enemyTransform != null) {
+                    float distance = projTransform.getPosition().distance(enemyTransform.getPosition());
+                    if (distance < 20) {
+                        enemyHealth.takeDamage(20); // 子弹伤害
+                        projectile.destroy(); // 销毁子�?                        break;
+                    }
+                }
+            }
+        }
+        
+        // 4. 玩家炮弹 vs 敌人（多目标攻击�?        //System.out.println("检查炮弹碰撞，炮弹数量: " + playerCannonballs.size());
+        for (GameObject cannonball : playerCannonballs) {
+            TransformComponent projTransform = cannonball.getComponent(TransformComponent.class);
+            if (projTransform == null) continue;
+            
+            //System.out.println("炮弹位置: " + projTransform.getPosition().x + ", " + projTransform.getPosition().y);
+            boolean hitAnyEnemy = false;
+            for (GameObject enemy : enemies) {
+                if (!enemy.isActive()) continue;
+                HealthComponent enemyHealth = enemy.getComponent(HealthComponent.class);
+                if (enemyHealth == null || !enemyHealth.isAlive()) continue;
+                TransformComponent enemyTransform = enemy.getComponent(TransformComponent.class);
+                if (enemyHealth != null && enemyTransform != null) {
+                    float distance = projTransform.getPosition().distance(enemyTransform.getPosition());
+                    //System.out.println("敌人位置: " + enemyTransform.getPosition().x + ", " + enemyTransform.getPosition().y + ", 距离: " + distance);
+                    if (distance < Cannonball.getCannonballScanRange()) { // 使用扫描距离进行碰撞检�?                        //System.out.println("炮弹扫描击中敌人，距�? " + distance + " (扫描范围: " + Cannonball.getCannonballScanRange() + ")");
+                        hitAnyEnemy = true;
+                        // 不break，继续检查其他敌�?                    }
+                }
+            }
+            
+            // 如果击中了任何敌人，销毁炮弹并创建爆炸效果
+            if (hitAnyEnemy) {
+                // 在攻击范围内对所有敌人造成伤害
+                for (GameObject enemy : enemies) {
+                    if (!enemy.isActive()) continue;
+                    HealthComponent enemyHealth = enemy.getComponent(HealthComponent.class);
+                    if (enemyHealth == null || !enemyHealth.isAlive()) continue;
+                    TransformComponent enemyTransform = enemy.getComponent(TransformComponent.class);
+                    if (enemyHealth != null && enemyTransform != null) {
+                        float distance = projTransform.getPosition().distance(enemyTransform.getPosition());
+                        if (distance < Cannonball.getCannonballAttackRange()) { // 使用攻击距离
+                            enemyHealth.takeDamage(Cannonball.getCannonballDamage());
+                        }
+                    }
+                }
+                
+                cannonball.destroy();
+                playSound("bomb_explode"); // 播放炮弹爆炸音效
+                // 创建爆炸效果 - 直接在场景中添加对象
+                GameObject explosionRange = new GameObject("CannonballExplosion", "CannonballExplosion");
+                explosionRange.addComponent(new TransformComponent(new Vector2(projTransform.getPosition().x, projTransform.getPosition().y)));
+                explosionRange.addComponent(new AttackRangeComponent(
+                    Cannonball.getCannonballExplosionDuration(), 
+                    Cannonball.getCannonballExplosionRadius()
+                )); // 使用炮弹类的爆炸效果常量
+                scene.addGameObject(explosionRange);
+                //System.out.println("炮弹爆炸效果已创�?);
+            }
+        }
+        
+        // 4. Boss炸弹 vs 玩家
+        List<GameObject> bossBombs = scene.findGameObjectsByTag("BossBomb");
+        GameObject playerForBomb = scene.findGameObjectByTag("Player");
+        if (playerForBomb != null) {
+            TransformComponent playerTransformForBomb = playerForBomb.getComponent(TransformComponent.class);
+            HealthComponent playerHealthForBomb = playerForBomb.getComponent(HealthComponent.class);
+            
+            for (GameObject bomb : bossBombs) {
+                TransformComponent bombTransform = bomb.getComponent(TransformComponent.class);
+                if (bombTransform != null && playerTransformForBomb != null && playerHealthForBomb != null) {
+                    float distance = bombTransform.getPosition().distance(playerTransformForBomb.getPosition());
+                    if (distance < Bomb.getBombScanRange()) { // 使用扫描距离进行碰撞检�?                        // 在攻击范围内对玩家造成伤害
+                        if (distance < Bomb.getBombAttackRange()) {
+                            playerHealthForBomb.takeDamage(Bomb.getBombDamage());
+                            playSound("damage"); // 播放伤害音效
+                        }
+                        
+                        bomb.destroy();
+                        playSound("bomb_explode"); // 播放炸弹爆炸音效
+                        
+                        // 创建炸弹爆炸效果
+                        GameObject explosionRange = new GameObject("BombExplosion", "BombExplosion");
+                        explosionRange.addComponent(new TransformComponent(new Vector2(bombTransform.getPosition().x, bombTransform.getPosition().y)));
+                        explosionRange.addComponent(new AttackRangeComponent(
+                            Bomb.getBombExplosionDuration(), 
+                            Bomb.getBombExplosionRadius()
+                        ));
+                        scene.addGameObject(explosionRange);
+                        System.out.println("Boss炸弹击中玩家�?);
+                    }
+                }
+            }
+        }
+        
+        // 5. 玩家近战 vs 敌人
+        for (GameObject melee : meleeAttacks) {
+            TransformComponent meleeTransform = melee.getComponent(TransformComponent.class);
+            if (meleeTransform == null) continue;
+            for (GameObject enemy : enemies) {
+                HealthComponent enemyHealth = enemy.getComponent(HealthComponent.class);
+                TransformComponent enemyTransform = enemy.getComponent(TransformComponent.class);
+                if (enemyHealth != null && enemyTransform != null) {
+                    float distance = meleeTransform.getPosition().distance(enemyTransform.getPosition());
+                    if (distance < Player.getMeleeRange()) { // 使用玩家类的近战范围常量
+                        enemyHealth.takeDamage(Player.getMeleeDamage()); // 使用玩家类的近战伤害常量
+                    }
+                }
+            }
+            //melee.destroy(); // 近战攻击是一次性的
+        }
+    }
+    
+}
